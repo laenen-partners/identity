@@ -6,7 +6,7 @@ import (
 )
 
 func TestNew_Valid(t *testing.T) {
-	id, err := New("t1", "ws1", "u1", PrincipalUser, []string{"admin", "editor"})
+	id, err := New("t1", "ws1", "u1", PrincipalUser, "clerk", []string{"admin", "editor"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -21,6 +21,9 @@ func TestNew_Valid(t *testing.T) {
 	}
 	if id.PrincipalType() != PrincipalUser {
 		t.Errorf("PrincipalType = %q, want %q", id.PrincipalType(), PrincipalUser)
+	}
+	if id.Issuer() != "clerk" {
+		t.Errorf("Issuer = %q, want %q", id.Issuer(), "clerk")
 	}
 	if !id.IsUser() {
 		t.Error("IsUser() = false, want true")
@@ -37,15 +40,17 @@ func TestNew_ValidationErrors(t *testing.T) {
 		workspace string
 		principal string
 		ptype     PrincipalType
+		issuer    string
 	}{
-		{"missing tenant", "", "ws", "u1", PrincipalUser},
-		{"missing workspace", "t1", "", "u1", PrincipalUser},
-		{"missing principal", "t1", "ws", "", PrincipalUser},
-		{"bad principal type", "t1", "ws", "u1", "robot"},
+		{"missing tenant", "", "ws", "u1", PrincipalUser, "clerk"},
+		{"missing workspace", "t1", "", "u1", PrincipalUser, "clerk"},
+		{"missing principal", "t1", "ws", "", PrincipalUser, "clerk"},
+		{"bad principal type", "t1", "ws", "u1", "robot", "clerk"},
+		{"missing issuer", "t1", "ws", "u1", PrincipalUser, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(tt.tenant, tt.workspace, tt.principal, tt.ptype, nil)
+			_, err := New(tt.tenant, tt.workspace, tt.principal, tt.ptype, tt.issuer, nil)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -55,7 +60,7 @@ func TestNew_ValidationErrors(t *testing.T) {
 
 func TestRoles_DefensiveCopy(t *testing.T) {
 	original := []string{"admin", "editor"}
-	id, _ := New("t1", "ws1", "u1", PrincipalUser, original)
+	id, _ := New("t1", "ws1", "u1", PrincipalUser, "clerk", original)
 
 	// Mutate the original slice — should not affect the identity.
 	original[0] = "hacked"
@@ -70,7 +75,7 @@ func TestRoles_DefensiveCopy(t *testing.T) {
 }
 
 func TestHasRole(t *testing.T) {
-	id, _ := New("t1", "ws1", "u1", PrincipalUser, []string{"admin", "editor"})
+	id, _ := New("t1", "ws1", "u1", PrincipalUser, "clerk", []string{"admin", "editor"})
 
 	if !id.HasRole("admin") {
 		t.Error("HasRole(admin) = false, want true")
@@ -81,7 +86,7 @@ func TestHasRole(t *testing.T) {
 }
 
 func TestHasAnyRole(t *testing.T) {
-	id, _ := New("t1", "ws1", "u1", PrincipalUser, []string{"editor"})
+	id, _ := New("t1", "ws1", "u1", PrincipalUser, "clerk", []string{"editor"})
 
 	if !id.HasAnyRole("admin", "editor") {
 		t.Error("HasAnyRole(admin, editor) = false, want true")
@@ -92,7 +97,7 @@ func TestHasAnyRole(t *testing.T) {
 }
 
 func TestContextRoundTrip(t *testing.T) {
-	id, _ := New("t1", "ws1", "svc1", PrincipalService, []string{"ingester"})
+	id, _ := New("t1", "ws1", "svc1", PrincipalService, "auth0", []string{"ingester"})
 
 	ctx := WithContext(context.Background(), id)
 	got, ok := FromContext(ctx)
@@ -121,8 +126,8 @@ func TestMustFromContext_Panics(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	id, _ := New("t1", "ws1", "u1", PrincipalUser, []string{"admin"})
-	want := "user:u1@t1/ws1 roles=[admin]"
+	id, _ := New("t1", "ws1", "u1", PrincipalUser, "clerk", []string{"admin"})
+	want := "user:u1@t1/ws1 issuer=clerk roles=[admin]"
 	if got := id.String(); got != want {
 		t.Errorf("String() = %q, want %q", got, want)
 	}

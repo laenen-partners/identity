@@ -31,12 +31,13 @@ type Context struct {
 	workspaceID   string
 	principalID   string
 	principalType PrincipalType
+	issuer        string
 	roles         []string
 }
 
 // New creates a validated identity Context. Returns an error if any required
 // field is empty or principalType is not a known value.
-func New(tenantID, workspaceID, principalID string, principalType PrincipalType, roles []string) (Context, error) {
+func New(tenantID, workspaceID, principalID string, principalType PrincipalType, issuer string, roles []string) (Context, error) {
 	if tenantID == "" {
 		return Context{}, fmt.Errorf("identity: tenant ID is required")
 	}
@@ -51,6 +52,9 @@ func New(tenantID, workspaceID, principalID string, principalType PrincipalType,
 	default:
 		return Context{}, fmt.Errorf("identity: unknown principal type %q", principalType)
 	}
+	if issuer == "" {
+		return Context{}, fmt.Errorf("identity: issuer is required")
+	}
 
 	// Defensive copy so callers can't mutate our slice.
 	r := make([]string, len(roles))
@@ -61,16 +65,18 @@ func New(tenantID, workspaceID, principalID string, principalType PrincipalType,
 		workspaceID:   workspaceID,
 		principalID:   principalID,
 		principalType: principalType,
+		issuer:        issuer,
 		roles:         r,
 	}, nil
 }
 
 // Accessors — no setters; identity is immutable once created.
 
-func (c Context) TenantID() string        { return c.tenantID }
-func (c Context) WorkspaceID() string      { return c.workspaceID }
-func (c Context) PrincipalID() string      { return c.principalID }
+func (c Context) TenantID() string             { return c.tenantID }
+func (c Context) WorkspaceID() string          { return c.workspaceID }
+func (c Context) PrincipalID() string          { return c.principalID }
 func (c Context) PrincipalType() PrincipalType { return c.principalType }
+func (c Context) Issuer() string               { return c.issuer }
 
 // Roles returns a copy of the role list.
 func (c Context) Roles() []string {
@@ -100,10 +106,10 @@ func (c Context) IsService() bool { return c.principalType == PrincipalService }
 // String returns a human-readable representation useful for logging.
 // Never includes secret material.
 func (c Context) String() string {
-	return fmt.Sprintf("%s:%s@%s/%s roles=[%s]",
+	return fmt.Sprintf("%s:%s@%s/%s issuer=%s roles=[%s]",
 		c.principalType, c.principalID,
 		c.tenantID, c.workspaceID,
-		strings.Join(c.roles, ","),
+		c.issuer, strings.Join(c.roles, ","),
 	)
 }
 
@@ -115,6 +121,7 @@ func (c Context) LogValue() map[string]any {
 		"workspace_id":   c.workspaceID,
 		"principal_id":   c.principalID,
 		"principal_type": string(c.principalType),
+		"issuer":         c.issuer,
 		"roles":          c.roles,
 	}
 }
